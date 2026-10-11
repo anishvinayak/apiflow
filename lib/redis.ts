@@ -1,28 +1,32 @@
+
 import { createClient } from "redis";
 
-const redisUrl = process.env.REDIS_URL;
-
-if (!redisUrl) {
-  throw new Error("REDIS_URL is not defined");
-}
-
-const globalForRedis = globalThis as {
+const globalForRedis = globalThis as typeof globalThis & {
   redisClient?: ReturnType<typeof createClient>;
 };
 
 export async function getRedis() {
   if (!globalForRedis.redisClient) {
+    const redisUrl = process.env.REDIS_URL;
+
+    if (!redisUrl) {
+      throw new Error("REDIS_URL is not defined");
+    }
+
     const url = new URL(redisUrl);
+    const useTls = url.protocol === "rediss:";
 
     globalForRedis.redisClient = createClient({
-      socket: {
-        host: url.hostname,
-        port: Number(url.port) || 6379,
-        tls: url.protocol === "rediss:",
-        servername: url.hostname,
-      },
-      username: url.username || undefined,
-      password: url.password || undefined,
+      url: redisUrl,
+      socket: useTls
+        ? {
+            tls: true,
+            servername: url.hostname,
+          }
+        : {
+            host: url.hostname,
+            port: Number(url.port) || 6379,
+          },
     });
 
     globalForRedis.redisClient.on("error", (error) => {
